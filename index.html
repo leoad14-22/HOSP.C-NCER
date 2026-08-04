@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Painel de Atendimento — Guichês</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F2F6F4;
+    --header-bg:#12403A;
+    --header-fg:#EAF3EF;
+    --muted-teal:#8FBFAE;
+    --card-border:#E1EAE6;
+    --text-dark:#12403A;
+    --muted-text:#8FA39B;
+    --track-bg:#EEF2F0;
+    --lunch:#F0B36B;
+    --green-bg:#E4F3EC; --green-fg:#1F7A54;
+    --amber-bg:#FCEEDD; --amber-fg:#C1762A;
+    --red-bg:#FDE3E3; --red-fg:#C81E1E; --red-border:#E7A3A3;
+    --input-bg:#F5F7F6;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--text-dark);}
+  .banner{background:#C81E1E;color:#fff;font-size:13px;padding:8px 16px;text-align:center;display:none;}
+  .banner.show{display:block;}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(100px);background:#12403A;color:#fff;padding:12px 20px;border-radius:12px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,0.2);transition:transform .25s ease;z-index:50;display:flex;align-items:center;gap:10px;}
+  .toast.show{transform:translateX(-50%) translateY(0);}
+  .toast.error{background:#C81E1E;}
+  .toast button{background:rgba(255,255,255,0.15);border:none;color:#fff;padding:5px 10px;border-radius:8px;font-size:12px;cursor:pointer;}
+  header{background:var(--header-bg);padding:24px 20px;}
+  .header-inner{max-width:1200px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;}
+  .logo-wrap{display:flex;align-items:center;gap:14px;}
+  .logo-img{width:52px;height:52px;object-fit:contain;flex-shrink:0;border-radius:12px;background:#fff;padding:4px;}
+  .hospital-name{background:transparent;border:none;outline:none;color:#fff;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(20px,4vw,30px);letter-spacing:-0.02em;width:100%;max-width:500px;padding:2px 4px;border-radius:6px;}
+  .hospital-name:focus{box-shadow:0 0 0 1px rgba(255,255,255,0.4);}
+  .subtitle{color:var(--muted-teal);font-size:11px;text-transform:uppercase;letter-spacing:0.2em;padding:2px 4px;display:block;}
+  .header-right{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+  .clock-wrap{display:flex;align-items:center;gap:10px;}
+  .clock{font-family:'IBM Plex Mono',monospace;font-size:24px;color:#EAF3EF;letter-spacing:0.03em;}
+  .clock .secs{color:var(--muted-teal);}
+  .date{color:#B9D8CB;font-size:13px;text-transform:capitalize;}
+  .mode-btn{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.18);color:#EAF3EF;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;padding:9px 14px;border-radius:10px;cursor:pointer;transition:background .15s;}
+  .mode-btn:hover{background:rgba(255,255,255,0.16);}
+  .mode-btn.active{background:var(--muted-teal);color:var(--header-bg);border-color:var(--muted-teal);}
+  main{max-width:1200px;margin:0 auto;padding:28px 16px 40px;}
+  .grid{display:grid;grid-template-columns:1fr;gap:14px;}
+  @media(min-width:560px){.grid{grid-template-columns:1fr 1fr;}}
+  @media(min-width:900px){.grid{grid-template-columns:1fr 1fr 1fr;}}
+  @media(min-width:1200px){.grid{grid-template-columns:1fr 1fr 1fr 1fr;}}
+  .footnote{margin-top:20px;font-size:12px;color:#5B7A70;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;}
+  .save-state{display:flex;align-items:center;gap:6px;}
+  .save-state.error{color:var(--red-fg);font-weight:600;}
+  .save-dot{width:7px;height:7px;border-radius:50%;background:#5B7A70;}
+  .save-state.saving .save-dot{background:var(--amber-fg);}
+  .save-state.saved .save-dot{background:var(--green-fg);}
+  .save-state.error .save-dot{background:var(--red-fg);}
+
+  .card{background:#fff;border:1px solid var(--card-border);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px;box-shadow:0 1px 2px rgba(18,64,58,0.04);transition:border-color .2s, background .2s;min-width:0;position:relative;}
+  .card.fechado{border:1.5px solid var(--red-border);background:#FFFBFB;box-shadow:0 1px 3px rgba(200,30,30,0.10);}
+  .card-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .num{width:36px;height:36px;flex-shrink:0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;background:var(--header-bg);color:var(--header-fg);}
+  .card.fechado .num{background:var(--red-fg);}
+  .top-right{display:flex;align-items:center;gap:6px;}
+  .status{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap;}
+  .status.aberto{background:var(--green-bg);color:var(--green-fg);}
+  .status.almoco{background:var(--amber-bg);color:var(--amber-fg);}
+  .status.fechado{background:var(--red-bg);color:var(--red-fg);}
+  .remove-btn{width:26px;height:26px;flex-shrink:0;border:none;border-radius:8px;background:var(--input-bg);color:#9AAFA8;font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;}
+  .remove-btn:hover{background:var(--red-bg);color:var(--red-fg);}
+
+  .funcao-input{width:100%;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:16px;color:var(--text-dark);border:none;border-bottom:1px solid transparent;outline:none;padding:2px 0;background:transparent;}
+  .funcao-input:focus{border-bottom-color:var(--text-dark);}
+
+  label.field{display:flex;flex-direction:column;gap:3px;}
+  label.field span{font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted-text);}
+  input[type=text].field-input, input[type=time].field-input{background:var(--input-bg);color:var(--text-dark);border:none;border-radius:8px;padding:7px 8px;font-size:13px;outline:none;width:100%;font-family:'Inter',sans-serif;}
+  input[type=time].field-input{font-family:'IBM Plex Mono',monospace;}
+  input.field-input.invalid{box-shadow:0 0 0 1.5px var(--red-fg);background:var(--red-bg);}
+  .field-error{font-size:10px;color:var(--red-fg);display:none;}
+  .field-error.show{display:block;}
+  .row2{display:flex;gap:8px;}
+  .row2 .field{flex:1;min-width:0;}
+
+  .timeline-track{position:relative;height:8px;border-radius:999px;background:var(--track-bg);overflow:hidden;}
+  .timeline-lunch{position:absolute;top:0;height:100%;background:var(--lunch);}
+  .timeline-marker{position:absolute;top:-3px;width:2px;height:14px;border-radius:2px;background:var(--text-dark);}
+  .card.fechado .timeline-marker{background:var(--red-fg);}
+  .timeline-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--muted-text);font-family:'IBM Plex Mono',monospace;margin-top:4px;}
+
+  .override-btn{display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:500;border:none;border-radius:10px;padding:8px;cursor:pointer;background:var(--input-bg);color:#5B7A70;}
+  .override-btn.active{background:var(--red-bg);color:var(--red-fg);}
+
+  /* Tile para adicionar novo guichê */
+  .add-card{border:1.5px dashed var(--card-border);border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:160px;background:transparent;color:#7C9891;cursor:pointer;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;transition:border-color .15s,color .15s,background .15s;}
+  .add-card:hover{border-color:var(--muted-teal);color:var(--header-bg);background:#fff;}
+  .add-card .plus{width:34px;height:34px;border-radius:50%;background:var(--input-bg);display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1;}
+
+  /* ===== Modo de exibição (somente leitura / TV) ===== */
+  body.display-mode .footnote,
+  body.display-mode .add-card,
+  body.display-mode .remove-btn,
+  body.display-mode .override-btn,
+  body.display-mode .field-error { display:none !important; }
+  body.display-mode main{ padding-top:36px; }
+  body.display-mode .hospital-name{ pointer-events:none; }
+  body.display-mode .grid{ gap:20px; }
+  body.display-mode .card{ padding:22px; gap:16px; pointer-events:none; box-shadow:0 2px 6px rgba(18,64,58,0.06); }
+  body.display-mode .num{ width:44px; height:44px; font-size:16px; }
+  body.display-mode .funcao-input{ font-size:20px; }
+  body.display-mode .status{ font-size:14px; padding:6px 14px; }
+  body.display-mode input[type=text].field-input,
+  body.display-mode input[type=time].field-input{
+    background:transparent; padding:2px 0; font-size:15px; font-weight:500;
+  }
+  body.display-mode label.field span{ font-size:10.5px; }
+  body.display-mode .row2{ gap:18px; }
+</style>
+</head>
+<body>
+
+<div id="banner" class="banner"></div>
+
+<header>
+  <div class="header-inner">
+    <div class="logo-wrap">
+      <img class="logo-img" src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 52 52'%3E%3Crect width='52' height='52' rx='12' fill='%2312403A'/%3E%3Cpath d='M26 12v28M12 26h28' stroke='%23EAF3EF' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E" alt="Logo Hospital do Câncer de Franca" />
+      <div style="display:flex;flex-direction:column;">
+        <input id="hospitalName" class="hospital-name" value="Hospital do Câncer de Franca" />
+        <span class="subtitle" id="subtitleCount">Painel de atendimento</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="clock-wrap">
+        <div class="clock"><span id="clockTime">00:00</span><span class="secs" id="clockSecs">:00</span></div>
+        <div class="date" id="clockDate"></div>
+      </div>
+      <button class="mode-btn" id="displayModeBtn" title="Alternar para modo de exibição em tela cheia">
+        <span id="displayModeIcon">⛶</span> <span id="displayModeLabel">Modo exibição</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="grid" id="grid"></div>
+  <div class="footnote">
+    <span>Toque nos campos de cada guichê para editar função, responsável e horários.</span>
+    <span class="save-state" id="saveState"><span class="save-dot"></span><span id="saveStateText"></span></span>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+// ============================================================
+// 1) CONFIGURAÇÃO DO FIREBASE
+//    Projeto: painel-guiches-hospital
+// ============================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyAlV4BdTkSVpTg-LrZXiGHM6sM4udA3HEI",
+  authDomain: "painel-guiches-hospital.firebaseapp.com",
+  projectId: "painel-guiches-hospital",
+  storageBucket: "painel-guiches-hospital.firebasestorage.app",
+  messagingSenderId: "82974590453",
+  appId: "1:82974590453:web:a10e80026217bb8d700cbc",
+  measurementId: "G-4QSYEGRX9R"
+};
+
+const isConfigured = !Object.values(firebaseConfig).some(v => String(v).startsWith("SUA_") || String(v).startsWith("SEU_"));
+
+let db = null;
+let fs = null; // firestore functions namespace
+
+async function initFirebase() {
+  if (!isConfigured) {
+    showBanner("Configure suas credenciais do Firebase no topo do arquivo index.html — os dados estão sendo salvos apenas neste navegador por enquanto.");
+    return false;
+  }
+  try {
+    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+    const firestoreMod = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+    const app = initializeApp(firebaseConfig);
+    db = firestoreMod.getFirestore(app);
+    fs = firestoreMod;
+
+    try {
+      const { getAnalytics, isSupported } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js");
+      if (await isSupported()) getAnalytics(app);
+    } catch (e) {
+      // Sem problema se o Analytics não carregar (ex: abrindo o arquivo direto no navegador)
+    }
+
+    return true;
+  } catch (e) {
+    console.error("Falha ao iniciar Firebase:", e);
+    showBanner("Não foi possível conectar ao Firebase. Os dados estão sendo salvos apenas neste navegador por enquanto.");
+    return false;
+  }
+}
+
+function showBanner(text) {
+  const el = document.getElementById("banner");
+  el.textContent = text;
+  el.classList.add("show");
+}
+
+// ============================================================
+// 2) ESTADO / DADOS PADRÃO
+// ============================================================
+const DEFAULT_GUICHES = [
+  { id: 1, funcao: "Recepção Geral", responsavel: "", expInicio: "07:00", expFim: "16:00", almocoInicio: "12:00", almocoFim: "13:00", override: null },
+  { id: 2, funcao: "Triagem", responsavel: "", expInicio: "07:00", expFim: "16:00", almocoInicio: "12:30", almocoFim: "13:30", override: null },
+  { id: 3, funcao: "Cadastro de Pacientes", responsavel: "", expInicio: "08:00", expFim: "17:00", almocoInicio: "11:30", almocoFim: "12:30", override: null },
+  { id: 4, funcao: "Convênios", responsavel: "", expInicio: "08:00", expFim: "17:00", almocoInicio: "12:00", almocoFim: "13:00", override: null },
+  { id: 5, funcao: "Particular", responsavel: "", expInicio: "09:00", expFim: "18:00", almocoInicio: "13:00", almocoFim: "14:00", override: null },
+  { id: 6, funcao: "Agendamento de Exames", responsavel: "", expInicio: "07:00", expFim: "19:00", almocoInicio: "12:30", almocoFim: "13:30", override: null },
+  { id: 7, funcao: "Internação", responsavel: "", expInicio: "06:00", expFim: "18:00", almocoInicio: "11:00", almocoFim: "12:00", override: null },
+  { id: 8, funcao: "Informações", responsavel: "", expInicio: "10:00", expFim: "19:00", almocoInicio: "13:30", almocoFim: "14:30", override: null },
+];
+
+let hospitalName = "Hospital do Câncer de Franca";
+let guiches = DEFAULT_GUICHES.map(g => ({...g}));
+
+// ============================================================
+// 3) PERSISTÊNCIA LOCAL (fallback enquanto o Firebase não está configurado)
+// ============================================================
+const LOCAL_KEY = "painel-guiches-fallback-v1";
+function loadLocal() {
+  try {
+    const raw = localStorage.getItem(LOCAL_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.hospitalName) hospitalName = parsed.hospitalName;
+      if (Array.isArray(parsed.guiches) && parsed.guiches.length > 0) guiches = parsed.guiches;
+    }
+  } catch(e) {}
+}
+function saveLocal() {
+  localStorage.setItem(LOCAL_KEY, JSON.stringify({ hospitalName, guiches }));
+}
+
+// ============================================================
+// 4) PERSISTÊNCIA FIREBASE (com indicação de erro e nova tentativa)
+// ============================================================
+let saveTimers = {};
+
+function debounceSaveGuiche(id) {
+  clearTimeout(saveTimers[id]);
+  setSaveState("saving");
+  saveTimers[id] = setTimeout(() => persistGuiche(id, 0), 500);
+}
+
+async function persistGuiche(id, attempt) {
+  const g = guiches.find(x => x.id === id);
+  if (!g) return;
+  if (db) {
+    try {
+      await fs.setDoc(fs.doc(db, "painel", "principal", "guiches", String(id)), g);
+      setSaveState("saved");
+    } catch (e) {
+      console.error("Erro ao salvar guichê", id, e);
+      handleSaveError(() => persistGuiche(id, attempt + 1), attempt);
+    }
+  } else {
+    saveLocal();
+    setSaveState("saved (local)");
+  }
+}
+
+let hospitalSaveTimer;
+function debounceSaveHospital() {
+  clearTimeout(hospitalSaveTimer);
+  setSaveState("saving");
+  hospitalSaveTimer = setTimeout(() => persistHospital(0), 500);
+}
+
+async function persistHospital(attempt) {
+  if (db) {
+    try {
+      await fs.setDoc(fs.doc(db, "painel", "principal"), { hospitalName }, { merge: true });
+      setSaveState("saved");
+    } catch (e) {
+      console.error("Erro ao salvar nome do hospital", e);
+      handleSaveError(() => persistHospital(attempt + 1), attempt);
+    }
+  } else {
+    saveLocal();
+    setSaveState("saved (local)");
+  }
+}
+
+// Reatribui os números (id) de todos os guichês de forma sequencial (1..N),
+// mantendo a ordem atual da lista, e persiste a nova numeração.
+// Usada após remover um guichê para que os seguintes "subam" um número.
+async function persistRenumber(oldIds) {
+  if (!db) {
+    saveLocal();
+    setSaveState("saved (local)");
+    return;
+  }
+  setSaveState("saving");
+  try {
+    // Remove todos os documentos com a numeração antiga...
+    await Promise.all(
+      oldIds.map(id =>
+        fs.deleteDoc(fs.doc(db, "painel", "principal", "guiches", String(id))).catch(() => {})
+      )
+    );
+    // ...e grava os guichês restantes já com a nova numeração sequencial.
+    await Promise.all(
+      guiches.map(g => fs.setDoc(fs.doc(db, "painel", "principal", "guiches", String(g.id)), g))
+    );
+    setSaveState("saved");
+  } catch (e) {
+    console.error("Erro ao renumerar guichês:", e);
+    handleSaveError(() => persistRenumber(oldIds), 0);
+  }
+}
+
+// Nova tentativa automática (backoff simples) + aviso visível ao usuário
+const MAX_RETRY = 4;
+function handleSaveError(retryFn, attempt) {
+  setSaveState("error");
+  if (attempt === 0) {
+    showToast("Não foi possível salvar agora. Tentando novamente…", true);
+  }
+  if (attempt < MAX_RETRY) {
+    const delay = Math.min(1000 * Math.pow(2, attempt), 15000);
+    setTimeout(retryFn, delay);
+  } else {
+    showToast("Alterações não sincronizadas. Verifique sua conexão com a internet.", true, true);
+  }
+}
+
+function setSaveState(state) {
+  const wrap = document.getElementById("saveState");
+  const text = document.getElementById("saveStateText");
+  wrap.className = "save-state " + (state === "saving" ? "saving" : state === "saved" || state === "saved (local)" ? "saved" : state === "error" ? "error" : "");
+  text.textContent = state === "saving" ? "Salvando…"
+    : state === "saved" ? "Alterações salvas"
+    : state === "saved (local)" ? "Salvo neste navegador"
+    : state === "error" ? "Erro ao salvar — tentando novamente"
+    : "";
+}
+
+let toastTimer;
+function showToast(msg, isError, persistent) {
+  const el = document.getElementById("toast");
+  el.innerHTML = "";
+  const span = document.createElement("span");
+  span.textContent = msg;
+  el.appendChild(span);
+  if (persistent) {
+    const btn = document.createElement("button");
+    btn.textContent = "Fechar";
+    btn.addEventListener("click", () => el.classList.remove("show"));
+    el.appendChild(btn);
+  }
+  el.className = "toast show" + (isError ? " error" : "");
+  clearTimeout(toastTimer);
+  if (!persistent) {
+    toastTimer = setTimeout(() => el.classList.remove("show"), 5000);
+  }
+}
+
+function subscribeFirestore() {
+  if (!db) return;
+  fs.onSnapshot(fs.doc(db, "painel", "principal"), (snap) => {
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data.hospitalName && document.activeElement?.id !== "hospitalName") {
+        hospitalName = data.hospitalName;
+        document.getElementById("hospitalName").value = hospitalName;
+      }
+    } else {
+      fs.setDoc(fs.doc(db, "painel", "principal"), { hospitalName });
+    }
+  }, (error) => {
+    console.error("Erro no listener do documento principal:", error);
+    setSaveState("error");
+  });
+
+  fs.onSnapshot(fs.collection(db, "painel", "principal", "guiches"), (snap) => {
+    let structureChanged = false;
+    snap.docChanges().forEach((change) => {
+      const data = change.doc.data();
+      if (change.type === "removed") {
+        const idx = guiches.findIndex(g => g.id === data.id);
+        if (idx !== -1) {
+          guiches.splice(idx, 1);
+          removeCardFromDOM(data.id);
+          structureChanged = true;
+        }
+        return;
+      }
+      const idx = guiches.findIndex(g => g.id === data.id);
+      if (idx === -1) {
+        guiches.push(data);
+        buildCard(data);
+        structureChanged = true;
+      } else {
+        const cardFocused = document.querySelector(`.card[data-id="${data.id}"]`)?.contains(document.activeElement);
+        guiches[idx] = data;
+        if (!cardFocused) syncCardInputs(data.id);
+      }
+      updateCardStatus(data.id);
+    });
+    if (structureChanged) {
+      guiches.sort((a,b) => a.id - b.id);
+      reorderGrid();
+      updateSubtitleCount();
+    }
+    if (snap.empty && guiches.length > 0) {
+      guiches.forEach(g => fs.setDoc(fs.doc(db, "painel", "principal", "guiches", String(g.id)), g));
+    }
+  }, (error) => {
+    console.error("Erro no listener dos guichês:", error);
+    setSaveState("error");
+  });
+}
+
+// ============================================================
+// 5) LÓGICA DE HORÁRIO / STATUS
+// ============================================================
+function toMinutes(t) { const [h,m] = t.split(":").map(Number); return h*60+m; }
+function pct(min, start, end) { const span = end-start; if (span<=0) return 0; return Math.min(100, Math.max(0, ((min-start)/span)*100)); }
+
+function computeStatus(g, nowMin) {
+  const expI = toMinutes(g.expInicio), expF = toMinutes(g.expFim);
+  const almI = toMinutes(g.almocoInicio), almF = toMinutes(g.almocoFim);
+  const foraExpediente = nowMin < expI || nowMin >= expF;
+  const emAlmoco = !foraExpediente && nowMin >= almI && nowMin < almF;
+  if (foraExpediente || g.override === "fechado") return "fechado";
+  if (emAlmoco) return "almoco";
+  return "aberto";
+}
+
+const STATUS_LABEL = { aberto: "Aberto", almoco: "Em almoço", fechado: "Fechado" };
+
+// ============================================================
+// 6) RENDER
+// ============================================================
+const grid = document.getElementById("grid");
+let addCardEl = null;
+let nextIdCounter = 1;
+
+function fieldRow(id, key, label, type, value) {
+  return `<label class="field">
+    <span>${label}</span>
+    <input class="field-input" data-field="${key}" data-id="${id}" type="${type}" value="${value}" />
+  </label>`;
+}
+
+function buildCard(g) {
+  nextIdCounter = Math.max(nextIdCounter, g.id + 1);
+  const el = document.createElement("div");
+  el.className = "card";
+  el.dataset.id = g.id;
+  el.innerHTML = `
+    <div class="card-top">
+      <span class="num">${String(g.id).padStart(2,"0")}</span>
+      <div class="top-right">
+        <div class="status" id="status-${g.id}"></div>
+        <button class="remove-btn" id="remove-${g.id}" title="Remover guichê">✕</button>
+      </div>
+    </div>
+    <input class="funcao-input" data-field="funcao" data-id="${g.id}" type="text" value="${g.funcao}" placeholder="Definir função" />
+    <label class="field">
+      <span>Responsável pelo guichê</span>
+      <input class="field-input" data-field="responsavel" data-id="${g.id}" type="text" value="${g.responsavel}" placeholder="Nome do funcionário" />
+    </label>
+    <div>
+      <div class="timeline-track">
+        <div class="timeline-lunch" id="lunch-${g.id}"></div>
+        <div class="timeline-marker" id="marker-${g.id}"></div>
+      </div>
+      <div class="timeline-labels"><span>${g.expInicio}</span><span>${g.expFim}</span></div>
+    </div>
+    <div class="row2">
+      ${fieldRow(g.id, "expInicio", "Expediente início", "time", g.expInicio)}
+      ${fieldRow(g.id, "expFim", "Expediente fim", "time", g.expFim)}
+    </div>
+    <div class="row2">
+      ${fieldRow(g.id, "almocoInicio", "Almoço início", "time", g.almocoInicio)}
+      ${fieldRow(g.id, "almocoFim", "Almoço fim", "time", g.almocoFim)}
+    </div>
+    <button class="override-btn" id="override-${g.id}"></button>
+  `;
+
+  if (addCardEl) grid.insertBefore(el, addCardEl); else grid.appendChild(el);
+
+  el.querySelectorAll("input").forEach(input => {
+    input.addEventListener("input", (e) => {
+      const id = Number(e.target.dataset.id);
+      const field = e.target.dataset.field;
+      const gi = guiches.find(x => x.id === id);
+      gi[field] = e.target.value;
+      if (field === "expInicio" || field === "expFim" || field === "almocoInicio" || field === "almocoFim") {
+        el.querySelector(".timeline-labels span:first-child").textContent = gi.expInicio;
+        el.querySelector(".timeline-labels span:last-child").textContent = gi.expFim;
+      }
+      updateCardStatus(id);
+      debounceSaveGuiche(id);
+    });
+  });
+
+  el.querySelector(`#override-${g.id}`).addEventListener("click", () => {
+    const gi = guiches.find(x => x.id === g.id);
+    gi.override = gi.override === "fechado" ? null : "fechado";
+    updateCardStatus(g.id);
+    debounceSaveGuiche(g.id);
+  });
+
+  el.querySelector(`#remove-${g.id}`).addEventListener("click", () => {
+    if (guiches.length <= 1) {
+      showToast("É preciso manter ao menos um guichê no painel.", true);
+      return;
+    }
+    const gi = guiches.find(x => x.id === g.id);
+    const nome = gi?.funcao || `Guichê ${g.id}`;
+    if (!confirm(`Remover o guichê "${nome}"? Esta ação não pode ser desfeita.`)) return;
+    removeGuiche(g.id);
+  });
+
+  updateCardStatus(g.id);
+}
+
+function removeCardFromDOM(id) {
+  const card = document.querySelector(`.card[data-id="${id}"]`);
+  if (card) card.remove();
+}
+
+function reorderGrid() {
+  // Reordena visualmente os cards conforme o array `guiches` (por id)
+  guiches.forEach(g => {
+    const card = document.querySelector(`.card[data-id="${g.id}"]`);
+    if (card) grid.insertBefore(card, addCardEl);
+  });
+}
+
+// Remove um guichê da lista e renumera automaticamente os demais,
+// para que a numeração continue sequencial (ex: remover o 2 faz o 3 virar o novo 2).
+function removeGuiche(id) {
+  const idx = guiches.findIndex(x => x.id === id);
+  if (idx === -1) return;
+
+  // Guarda os ids/numeração atuais (antes da remoção) para limpar os documentos antigos no Firestore
+  const oldIds = guiches.map(g => g.id);
+
+  guiches.splice(idx, 1);
+
+  // Reatribui os números 1..N na ordem em que os guichês aparecem
+  guiches.forEach((g, i) => { g.id = i + 1; });
+  nextIdCounter = guiches.length + 1;
+
+  // Reconstrói todos os cards do zero, já com a nova numeração
+  document.querySelectorAll(".card").forEach(c => c.remove());
+  guiches.forEach(g => buildCard(g));
+
+  updateSubtitleCount();
+  persistRenumber(oldIds);
+}
+
+function addGuiche() {
+  const newId = nextIdCounter;
+  nextIdCounter++;
+  const g = {
+    id: newId,
+    funcao: "Novo guichê",
+    responsavel: "",
+    expInicio: "08:00",
+    expFim: "17:00",
+    almocoInicio: "12:00",
+    almocoFim: "13:00",
+    override: null
+  };
+  guiches.push(g);
+  buildCard(g);
+  updateSubtitleCount();
+  debounceSaveGuiche(newId);
+  // Foca no campo de função do novo card para edição imediata
+  const input = document.querySelector(`.card[data-id="${newId}"] .funcao-input`);
+  if (input) { input.focus(); input.select(); }
+}
+
+function updateSubtitleCount() {
+  const el = document.getElementById("subtitleCount");
+  el.textContent = `Painel de atendimento · ${guiches.length} guich${guiches.length === 1 ? "ê" : "ês"}`;
+}
+
+function syncCardInputs(id) {
+  const g = guiches.find(x => x.id === id);
+  const card = document.querySelector(`.card[data-id="${id}"]`);
+  if (!card || !g) return;
+  card.querySelectorAll("input").forEach(input => {
+    const field = input.dataset.field;
+    if (document.activeElement === input) return;
+    if (input.value !== g[field]) input.value = g[field];
+  });
+  card.querySelector(".timeline-labels span:first-child").textContent = g.expInicio;
+  card.querySelector(".timeline-labels span:last-child").textContent = g.expFim;
+}
+
+function updateCardStatus(id) {
+  const g = guiches.find(x => x.id === id);
+  const card = document.querySelector(`.card[data-id="${id}"]`);
+  if (!card || !g) return;
+  const now = new Date();
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  const status = computeStatus(g, nowMin);
+  const isFechado = status === "fechado";
+
+  card.classList.toggle("fechado", isFechado);
+
+  const statusEl = document.getElementById(`status-${id}`);
+  statusEl.className = `status ${status}`;
+  statusEl.textContent = STATUS_LABEL[status];
+
+  const expI = toMinutes(g.expInicio), expF = toMinutes(g.expFim);
+  const almI = toMinutes(g.almocoInicio), almF = toMinutes(g.almocoFim);
+  const lunchEl = document.getElementById(`lunch-${id}`);
+  const barStart = pct(almI, expI, expF), barEnd = pct(almF, expI, expF);
+  lunchEl.style.left = barStart + "%";
+  lunchEl.style.width = Math.max(0, barEnd-barStart) + "%";
+
+  const markerEl = document.getElementById(`marker-${id}`);
+  const foraExpediente = nowMin < expI || nowMin >= expF;
+  if (foraExpediente) {
+    markerEl.style.display = "none";
+  } else {
+    markerEl.style.display = "block";
+    markerEl.style.left = pct(nowMin, expI, expF) + "%";
+  }
+
+  const overrideBtn = document.getElementById(`override-${id}`);
+  const forced = g.override === "fechado";
+  overrideBtn.classList.toggle("active", forced);
+  overrideBtn.textContent = forced ? "↺ Reabrir guichê" : "✕ Marcar como fechado";
+}
+
+// ============================================================
+// 7) RELÓGIO — otimizado: o relógio corre a cada segundo,
+//    mas os status/cards só são recalculados quando o minuto muda.
+// ============================================================
+let lastMinuteChecked = null;
+
+function tickClock() {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2,"0");
+  const mm = String(now.getMinutes()).padStart(2,"0");
+  const ss = String(now.getSeconds()).padStart(2,"0");
+  document.getElementById("clockTime").textContent = `${hh}:${mm}`;
+  document.getElementById("clockSecs").textContent = `:${ss}`;
+
+  const currentMinuteKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}-${now.getMinutes()}`;
+  if (currentMinuteKey !== lastMinuteChecked) {
+    lastMinuteChecked = currentMinuteKey;
+    document.getElementById("clockDate").textContent = now.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
+    guiches.forEach(g => updateCardStatus(g.id));
+  }
+}
+
+// ============================================================
+// 8) MODO DE EXIBIÇÃO (somente leitura / tela cheia para TV)
+// ============================================================
+async function toggleDisplayMode() {
+  const active = document.body.classList.toggle("display-mode");
+  const icon = document.getElementById("displayModeIcon");
+  const label = document.getElementById("displayModeLabel");
+  const btn = document.getElementById("displayModeBtn");
+  btn.classList.toggle("active", active);
+  icon.textContent = active ? "🖉" : "⛶";
+  label.textContent = active ? "Modo edição" : "Modo exibição";
+
+  if (active) {
+    if (document.documentElement.requestFullscreen) {
+      try { await document.documentElement.requestFullscreen(); } catch (e) { /* pode ser bloqueado pelo navegador */ }
+    }
+  } else {
+    if (document.fullscreenElement && document.exitFullscreen) {
+      try { await document.exitFullscreen(); } catch (e) {}
+    }
+  }
+}
+
+document.addEventListener("fullscreenchange", () => {
+  // Se o usuário sair da tela cheia pelo teclado (Esc), volta ao modo edição também
+  if (!document.fullscreenElement && document.body.classList.contains("display-mode")) {
+    document.body.classList.remove("display-mode");
+    document.getElementById("displayModeBtn").classList.remove("active");
+    document.getElementById("displayModeIcon").textContent = "⛶";
+    document.getElementById("displayModeLabel").textContent = "Modo exibição";
+  }
+});
+
+// ============================================================
+// 9) INICIALIZAÇÃO
+// ============================================================
+async function main() {
+  const connected = await initFirebase();
+  if (!connected) loadLocal();
+
+  document.getElementById("hospitalName").value = hospitalName;
+
+  document.getElementById("hospitalName").addEventListener("input", (e) => {
+    hospitalName = e.target.value;
+    debounceSaveHospital();
+  });
+
+  document.getElementById("displayModeBtn").addEventListener("click", toggleDisplayMode);
+
+  // Cria o tile de "adicionar guichê" antes de renderizar os cards
+  addCardEl = document.createElement("button");
+  addCardEl.type = "button";
+  addCardEl.className = "add-card";
+  addCardEl.innerHTML = `<span class="plus">+</span><span>Adicionar guichê</span>`;
+  addCardEl.addEventListener("click", addGuiche);
+  grid.appendChild(addCardEl);
+
+  if (connected) {
+    try {
+      const mainRef = fs.doc(db, "painel", "principal");
+      const mainSnap = await fs.getDoc(mainRef);
+      if (!mainSnap.exists()) {
+        await fs.setDoc(mainRef, { hospitalName });
+      } else if (mainSnap.data().hospitalName) {
+        hospitalName = mainSnap.data().hospitalName;
+        document.getElementById("hospitalName").value = hospitalName;
+      }
+      const guichesCol = fs.collection(db, "painel", "principal", "guiches");
+      const guichesSnap = await fs.getDocs(guichesCol);
+      if (guichesSnap.empty) {
+        for (const g of guiches) await fs.setDoc(fs.doc(guichesCol, String(g.id)), g);
+      } else {
+        guiches = [];
+        guichesSnap.forEach(d => guiches.push(d.data()));
+        guiches.sort((a,b) => a.id - b.id);
+      }
+      guiches.forEach(g => buildCard(g));
+      updateSubtitleCount();
+      subscribeFirestore();
+    } catch (e) {
+      console.error("Erro ao conectar ao Firestore, usando armazenamento local:", e);
+      loadLocal();
+      guiches.forEach(g => buildCard(g));
+      updateSubtitleCount();
+      document.getElementById("hospitalName").value = hospitalName;
+      showBanner("Não foi possível conectar ao Firestore agora (verifique se o banco foi criado no console e as regras de acesso). Salvando neste navegador por enquanto.");
+    }
+  } else {
+    guiches.forEach(g => buildCard(g));
+    updateSubtitleCount();
+  }
+
+  tickClock();
+  setInterval(tickClock, 1000);
+}
+
+window.addEventListener("unhandledrejection", (event) => {
+  if (String(event.reason?.message || "").includes("client is offline")) {
+    event.preventDefault();
+    console.warn("Firestore offline — os dados continuam sendo salvos localmente e serão sincronizados quando a conexão voltar.");
+    setSaveState("error");
+  }
+});
+
+window.addEventListener("online", () => showToast("Conexão restabelecida — sincronizando alterações.", false));
+window.addEventListener("offline", () => showToast("Sem conexão com a internet. As alterações serão salvas assim que a conexão voltar.", true, true));
+
+main();
+</script>
+</body>
+</html>
