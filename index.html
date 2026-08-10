@@ -209,17 +209,29 @@ function showBanner(text) {
 
 // ============================================================
 // 2) ESTADO / DADOS PADRÃO
+//    IMPORTANTE: "id" é um identificador ESTÁVEL (nunca muda) usado como
+//    ID do documento no Firestore. "ordem" é só a posição de exibição
+//    (o número mostrado na bolinha), e essa sim pode mudar quando um
+//    guichê é removido. Separar essas duas coisas é o que evita o bug
+//    de renumerar/apagar todos os documentos ao remover um guichê.
 // ============================================================
 const DEFAULT_GUICHES = [
-  { id: 1, funcao: "Recepção Geral", responsavel: "", expInicio: "07:00", expFim: "16:00", almocoInicio: "12:00", almocoFim: "13:00", override: null },
-  { id: 2, funcao: "Triagem", responsavel: "", expInicio: "07:00", expFim: "16:00", almocoInicio: "12:30", almocoFim: "13:30", override: null },
-  { id: 3, funcao: "Cadastro de Pacientes", responsavel: "", expInicio: "08:00", expFim: "17:00", almocoInicio: "11:30", almocoFim: "12:30", override: null },
-  { id: 4, funcao: "Convênios", responsavel: "", expInicio: "08:00", expFim: "17:00", almocoInicio: "12:00", almocoFim: "13:00", override: null },
-  { id: 5, funcao: "Particular", responsavel: "", expInicio: "09:00", expFim: "18:00", almocoInicio: "13:00", almocoFim: "14:00", override: null },
-  { id: 6, funcao: "Agendamento de Exames", responsavel: "", expInicio: "07:00", expFim: "19:00", almocoInicio: "12:30", almocoFim: "13:30", override: null },
-  { id: 7, funcao: "Internação", responsavel: "", expInicio: "06:00", expFim: "18:00", almocoInicio: "11:00", almocoFim: "12:00", override: null },
-  { id: 8, funcao: "Informações", responsavel: "", expInicio: "10:00", expFim: "19:00", almocoInicio: "13:30", almocoFim: "14:30", override: null },
+  { id: "seed-1", ordem: 1, funcao: "Recepção Geral", responsavel: "", expInicio: "07:00", expFim: "16:00", almocoInicio: "12:00", almocoFim: "13:00", override: null },
+  { id: "seed-2", ordem: 2, funcao: "Triagem", responsavel: "", expInicio: "07:00", expFim: "16:00", almocoInicio: "12:30", almocoFim: "13:30", override: null },
+  { id: "seed-3", ordem: 3, funcao: "Cadastro de Pacientes", responsavel: "", expInicio: "08:00", expFim: "17:00", almocoInicio: "11:30", almocoFim: "12:30", override: null },
+  { id: "seed-4", ordem: 4, funcao: "Convênios", responsavel: "", expInicio: "08:00", expFim: "17:00", almocoInicio: "12:00", almocoFim: "13:00", override: null },
+  { id: "seed-5", ordem: 5, funcao: "Particular", responsavel: "", expInicio: "09:00", expFim: "18:00", almocoInicio: "13:00", almocoFim: "14:00", override: null },
+  { id: "seed-6", ordem: 6, funcao: "Agendamento de Exames", responsavel: "", expInicio: "07:00", expFim: "19:00", almocoInicio: "12:30", almocoFim: "13:30", override: null },
+  { id: "seed-7", ordem: 7, funcao: "Internação", responsavel: "", expInicio: "06:00", expFim: "18:00", almocoInicio: "11:00", almocoFim: "12:00", override: null },
+  { id: "seed-8", ordem: 8, funcao: "Informações", responsavel: "", expInicio: "10:00", expFim: "19:00", almocoInicio: "13:30", almocoFim: "14:30", override: null },
 ];
+
+// Gera um ID estável e único para um novo guichê. Prefixado com letra para
+// nunca colidir com um seletor CSS "#id-que-começa-com-número".
+function generateId() {
+  if (window.crypto && crypto.randomUUID) return "g-" + crypto.randomUUID();
+  return "g-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 9);
+}
 
 let hospitalName = "Hospital do Câncer de Franca";
 let guiches = DEFAULT_GUICHES.map(g => ({...g}));
@@ -292,10 +304,15 @@ async function persistHospital(attempt) {
   }
 }
 
-// Reatribui os números (id) de todos os guichês de forma sequencial (1..N),
-// mantendo a ordem atual da lista, e persiste a nova numeração.
-// Usada após remover um guichê para que os seguintes "subam" um número.
-async function persistRenumber(oldIds) {
+// Remove APENAS o documento do guichê excluído e atualiza (merge) o campo
+// "ordem" dos guichês restantes. Isso é o que corrige o bug: antes, a
+// remoção apagava e recriava TODOS os documentos (mesmo IDs sendo
+// reaproveitados), o que fazia o listener em tempo real (onSnapshot)
+// disparar eventos de "removido" para praticamente todos os guichês ao
+// mesmo tempo, fazendo tudo sumir da tela momentaneamente (ou de vez,
+// se algo desse errado no meio do caminho). Agora só o guichê removido
+// gera um evento de remoção; os demais só recebem uma atualização normal.
+async function persistRemoval(removedId) {
   if (!db) {
     saveLocal();
     setSaveState("saved (local)");
@@ -303,20 +320,16 @@ async function persistRenumber(oldIds) {
   }
   setSaveState("saving");
   try {
-    // Remove todos os documentos com a numeração antiga...
+    await fs.deleteDoc(fs.doc(db, "painel", "principal", "guiches", String(removedId)));
     await Promise.all(
-      oldIds.map(id =>
-        fs.deleteDoc(fs.doc(db, "painel", "principal", "guiches", String(id))).catch(() => {})
+      guiches.map(g =>
+        fs.setDoc(fs.doc(db, "painel", "principal", "guiches", String(g.id)), { ordem: g.ordem }, { merge: true })
       )
-    );
-    // ...e grava os guichês restantes já com a nova numeração sequencial.
-    await Promise.all(
-      guiches.map(g => fs.setDoc(fs.doc(db, "painel", "principal", "guiches", String(g.id)), g))
     );
     setSaveState("saved");
   } catch (e) {
-    console.error("Erro ao renumerar guichês:", e);
-    handleSaveError(() => persistRenumber(oldIds), 0);
+    console.error("Erro ao remover guichê:", e);
+    handleSaveError(() => persistRemoval(removedId), 0);
   }
 }
 
@@ -409,7 +422,7 @@ function subscribeFirestore() {
       updateCardStatus(data.id);
     });
     if (structureChanged) {
-      guiches.sort((a,b) => a.id - b.id);
+      guiches.sort((a,b) => (a.ordem ?? 0) - (b.ordem ?? 0));
       reorderGrid();
       updateSubtitleCount();
     }
@@ -445,7 +458,6 @@ const STATUS_LABEL = { aberto: "Aberto", almoco: "Em almoço", fechado: "Fechado
 // ============================================================
 const grid = document.getElementById("grid");
 let addCardEl = null;
-let nextIdCounter = 1;
 
 function fieldRow(id, key, label, type, value) {
   return `<label class="field">
@@ -455,13 +467,12 @@ function fieldRow(id, key, label, type, value) {
 }
 
 function buildCard(g) {
-  nextIdCounter = Math.max(nextIdCounter, g.id + 1);
   const el = document.createElement("div");
   el.className = "card";
   el.dataset.id = g.id;
   el.innerHTML = `
     <div class="card-top">
-      <span class="num">${String(g.id).padStart(2,"0")}</span>
+      <span class="num">${String(g.ordem).padStart(2,"0")}</span>
       <div class="top-right">
         <div class="status" id="status-${g.id}"></div>
         <button class="remove-btn" id="remove-${g.id}" title="Remover guichê">✕</button>
@@ -494,7 +505,7 @@ function buildCard(g) {
 
   el.querySelectorAll("input").forEach(input => {
     input.addEventListener("input", (e) => {
-      const id = Number(e.target.dataset.id);
+      const id = e.target.dataset.id;
       const field = e.target.dataset.field;
       const gi = guiches.find(x => x.id === id);
       gi[field] = e.target.value;
@@ -520,7 +531,7 @@ function buildCard(g) {
       return;
     }
     const gi = guiches.find(x => x.id === g.id);
-    const nome = gi?.funcao || `Guichê ${g.id}`;
+    const nome = gi?.funcao || "este guichê";
     if (!confirm(`Remover o guichê "${nome}"? Esta ação não pode ser desfeita.`)) return;
     removeGuiche(g.id);
   });
@@ -534,41 +545,35 @@ function removeCardFromDOM(id) {
 }
 
 function reorderGrid() {
-  // Reordena visualmente os cards conforme o array `guiches` (por id)
+  // Reordena visualmente os cards conforme o array `guiches` (por ordem)
   guiches.forEach(g => {
     const card = document.querySelector(`.card[data-id="${g.id}"]`);
     if (card) grid.insertBefore(card, addCardEl);
   });
 }
 
-// Remove um guichê da lista e renumera automaticamente os demais,
-// para que a numeração continue sequencial (ex: remover o 2 faz o 3 virar o novo 2).
-function removeGuiche(id) {
+// Remove um guichê da lista. O ID dos guichês restantes NUNCA muda — apenas
+// o campo "ordem" (a numeração exibida) é recalculado. Isso evita apagar e
+// recriar documentos no Firestore, que era a causa do bug de tudo sumir.
+async function removeGuiche(id) {
   const idx = guiches.findIndex(x => x.id === id);
   if (idx === -1) return;
 
-  // Guarda os ids/numeração atuais (antes da remoção) para limpar os documentos antigos no Firestore
-  const oldIds = guiches.map(g => g.id);
-
   guiches.splice(idx, 1);
+  guiches.forEach((g, i) => { g.ordem = i + 1; });
 
-  // Reatribui os números 1..N na ordem em que os guichês aparecem
-  guiches.forEach((g, i) => { g.id = i + 1; });
-  nextIdCounter = guiches.length + 1;
-
-  // Reconstrói todos os cards do zero, já com a nova numeração
   document.querySelectorAll(".card").forEach(c => c.remove());
   guiches.forEach(g => buildCard(g));
 
   updateSubtitleCount();
-  persistRenumber(oldIds);
+  await persistRemoval(id);
 }
 
 function addGuiche() {
-  const newId = nextIdCounter;
-  nextIdCounter++;
+  const newId = generateId();
   const g = {
     id: newId,
+    ordem: guiches.length + 1,
     funcao: "Novo guichê",
     responsavel: "",
     expInicio: "08:00",
@@ -600,6 +605,8 @@ function syncCardInputs(id) {
     if (document.activeElement === input) return;
     if (input.value !== g[field]) input.value = g[field];
   });
+  const numEl = card.querySelector(".num");
+  if (numEl) numEl.textContent = String(g.ordem).padStart(2,"0");
   card.querySelector(".timeline-labels span:first-child").textContent = g.expInicio;
   card.querySelector(".timeline-labels span:last-child").textContent = g.expFim;
 }
@@ -737,7 +744,7 @@ async function main() {
       } else {
         guiches = [];
         guichesSnap.forEach(d => guiches.push(d.data()));
-        guiches.sort((a,b) => a.id - b.id);
+        guiches.sort((a,b) => (a.ordem ?? 0) - (b.ordem ?? 0));
       }
       guiches.forEach(g => buildCard(g));
       updateSubtitleCount();
